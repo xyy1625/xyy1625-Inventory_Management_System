@@ -3,35 +3,48 @@ from tkinter import ttk, messagebox, font
 import json
 import os
 from datetime import datetime
+import winsound
 
+# 文件路径
 DATA_FILE = 'inventory.json'
 ORDER_FILE = 'order_history.json'
 
-# --- 颜色和样式配置 ---
+# --- 天蓝色配色方案 ---
 COLORS = {
-    "primary": "#4e73df",
-    "secondary": "#858796",
-    "success": "#1cc88a",
-    "info": "#36b9cc",
-    "warning": "#f6c23e",
-    "danger": "#e74a3b",
-    "light": "#f8f9fc",
-    "dark": "#5a5c69",
-    "bg": "#f5f7fa",
-    "card": "#ffffff",
-    "text": "#3a3b45",
-    "border": "#dddfeb"
+    "primary": "#1E90FF",       # 道奇蓝(天蓝)
+    "primary_light": "#87CEFA", # 浅天蓝
+    "primary_dark": "#0077BE",  # 深天蓝
+    "secondary": "#20B2AA",     # 浅海洋绿
+    "danger": "#FF6347",        # 番茄红
+    "warning": "#FFD700",       # 金色
+    "info": "#4682B4",          # 钢蓝
+    "light": "#F0F8FF",         # 爱丽丝蓝
+    "dark": "#2F4F4F",          # 深石板灰
+    "bg": "#E6F2FF",            # 淡天蓝背景
+    "card": "#FFFFFF",          # 白色卡片
+    "text": "#333333",          # 深灰文字
+    "border": "#B0C4DE",        # 浅钢蓝边框
+    "success": "#3CB371"        # 中等海洋绿
 }
 
+# --- 现代化字体 ---
 FONTS = {
-    "title": ("Microsoft YaHei", 16, "bold"),
+    "title": ("Segoe UI", 18, "bold"),
     "subtitle": ("Segoe UI", 14, "bold"),
-    "normal": ("Segoe UI", 10),
-    "bold": ("Segoe UI", 10, "bold"),
-    "small": ("Segoe UI", 9)
+    "normal": ("Segoe UI", 11),
+    "bold": ("Segoe UI", 11, "bold"),
+    "small": ("Segoe UI", 10),
+    "large": ("Segoe UI", 12)
 }
 
-# --- 数据加载保存 ---
+# --- 声音反馈 ---
+def play_success_sound():
+    winsound.Beep(1000, 200)
+
+def play_error_sound():
+    winsound.Beep(500, 300)
+
+# --- 数据操作 ---
 def load_inventory():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
@@ -52,14 +65,18 @@ def save_orders():
     with open(ORDER_FILE, 'w', encoding='utf-8') as f:
         json.dump(order_history, f, ensure_ascii=False, indent=4)
 
-# --- 计算总价 ---
+# --- 辅助函数 ---
 def calculate_total(item):
     try:
         return round(item['quantity'] * item['price'], 2)
     except:
         return 0.0
 
-# --- 刷新库存列表 ---
+def update_status(message):
+    status_var.set(message)
+    root.after(5000, lambda: status_var.set("就绪"))
+
+# --- 库存管理功能 ---
 def refresh_tree(filter_keyword=None):
     for i in tree.get_children():
         tree.delete(i)
@@ -74,23 +91,22 @@ def refresh_tree(filter_keyword=None):
 
     for item_id, item in filtered_items.items():
         total = calculate_total(item)
-        tree.insert('', 'end', iid=item_id, values=(item_id, item['name'], item['quantity'], item['price'], total))
+        tree.insert('', 'end', iid=item_id, 
+                   values=(item_id, item['name'], item['quantity'], f"¥{item['price']:.2f}", f"¥{total:.2f}"),
+                   tags=('normal_row',))
 
     if "__new__" not in tree.get_children():
-        tree.insert('', 'end', iid="__new__", values=("000000", "", "", "", ""))
-        tree.item("__new__", tags=("placeholder",))
+        tree.insert('', 'end', iid="__new__", values=("000000", "", "", "", ""), tags=('placeholder',))
     
     update_status(f"已加载 {len(filtered_items)} 条商品记录")
 
-# --- 新增空白行 ---
 def add_blank_row():
     if "__new__" not in tree.get_children():
-        tree.insert('', 'end', iid="__new__", values=("000000", "", "", "", ""))
+        tree.insert('', 'end', iid="__new__", values=("000000", "", "", "", ""), tags=('placeholder',))
         tree.selection_set("__new__")
         tree.see("__new__")
         update_status("已添加新商品行，请双击编辑")
 
-# --- 双击编辑 ---
 def on_double_click(event):
     region = tree.identify_region(event.x, event.y)
     if region != "cell":
@@ -113,7 +129,7 @@ def on_double_click(event):
         bg=COLORS["light"],
         fg=COLORS["text"],
         relief="flat",
-        borderwidth=1,
+        borderwidth=0,
         highlightthickness=1,
         highlightcolor=COLORS["primary"],
         highlightbackground=COLORS["border"]
@@ -143,9 +159,9 @@ def on_double_click(event):
             tree.item(row_id, values=temp_values)
 
             if temp_values[0] == "000000":
-                tree.item(row_id, tags=("placeholder",))
+                tree.item(row_id, tags=('placeholder',))
             else:
-                tree.item(row_id, tags=())
+                tree.item(row_id, tags=('normal_row',))
 
             if col_name == "编号" and new_value != "000000":
                 if new_value in inventory:
@@ -155,7 +171,7 @@ def on_double_click(event):
                 try:
                     name = temp_values[1]
                     quantity = int(temp_values[2]) if temp_values[2] else 0
-                    price = float(temp_values[3]) if temp_values[3] else 0.0
+                    price = float(temp_values[3].replace("¥", "")) if temp_values[3] else 0.0
                     inventory[new_value] = {
                         'name': name,
                         'quantity': quantity,
@@ -174,7 +190,7 @@ def on_double_click(event):
                 elif col_name == "数量":
                     item["quantity"] = int(new_value) if new_value else 0
                 elif col_name == "价格":
-                    item["price"] = float(new_value) if new_value else 0.0
+                    item["price"] = float(new_value.replace("¥", "")) if new_value else 0.0
                 elif col_name == "编号":
                     if new_value == "":
                         messagebox.showerror("错误", "编号不能为空")
@@ -233,12 +249,12 @@ def query_item():
     if item:
         total = calculate_total(item)
         messagebox.showinfo("商品信息", 
-                          f"编号: {item_id}\n名称: {item['name']}\n数量: {item['quantity']}\n价格: {item['price']}\n总价: {total}",
+                          f"编号: {item_id}\n名称: {item['name']}\n数量: {item['quantity']}\n价格: ¥{item['price']:.2f}\n总价: ¥{total:.2f}",
                           parent=root)
     else:
         messagebox.showerror("错误", "未找到该商品", parent=root)
 
-# --- 搜索 ---
+# --- 搜索功能 ---
 def search_inventory(event=None):
     keyword = search_var.get().strip()
     refresh_tree(keyword)
@@ -252,17 +268,35 @@ def clear_search():
 # --- 收银系统 ---
 cart = {}
 
-def add_to_cart():
+def focus_barcode_entry():
+    cash_code_entry.focus_set()
+
+def handle_barcode_input(event=None):
     code = cash_code_var.get().strip()
-    qty_text = cash_qty_var.get().strip()
+    if code:
+        if code in inventory:
+            add_to_cart(code, 1)
+            play_success_sound()
+        else:
+            messagebox.showerror("错误", "未找到该商品", parent=root)
+            play_error_sound()
+        cash_code_var.set("")
+        focus_barcode_entry()
+
+def add_to_cart(code=None, qty=1):
+    if code is None:
+        code = cash_code_var.get().strip()
+    
     if not code:
         messagebox.showwarning("提示", "请输入商品编号", parent=root)
         return
+    
     if code not in inventory:
         messagebox.showerror("错误", "库存中无此商品编号", parent=root)
         return
+    
     try:
-        qty = int(qty_text)
+        qty = int(qty)
         if qty <= 0:
             raise ValueError
     except:
@@ -280,8 +314,8 @@ def add_to_cart():
         }
     refresh_cart()
     cash_code_var.set("")
-    cash_qty_var.set("")
     update_status(f"已添加 {qty} 件商品 {code} 到购物车")
+    focus_barcode_entry()
 
 def refresh_cart():
     for i in cart_tree.get_children():
@@ -289,7 +323,9 @@ def refresh_cart():
     total = 0.0
     for code, item in cart.items():
         subtotal = item['price'] * item['quantity']
-        cart_tree.insert('', 'end', iid=code, values=(code, item['name'], item['quantity'], item['price'], f"{subtotal:.2f}"))
+        cart_tree.insert('', 'end', iid=code, 
+                        values=(code, item['name'], item['quantity'], f"¥{item['price']:.2f}", f"¥{subtotal:.2f}"),
+                        tags=('normal_row',))
         total += subtotal
     total_var.set(f"¥{total:.2f}")
     total_label.config(text=f"总金额: {total_var.get()}")
@@ -301,6 +337,7 @@ def clear_cart():
         cart.clear()
         refresh_cart()
         update_status("已清空购物车")
+        focus_barcode_entry()
 
 def checkout():
     if not cart:
@@ -320,7 +357,7 @@ def checkout():
                            parent=root)
         return
     
-    # 计算总金额（直接从购物车计算，避免依赖界面变量）
+    # 计算总金额
     total_amount = round(sum(
         item['price'] * item['quantity'] 
         for item in cart.values()
@@ -331,7 +368,7 @@ def checkout():
         inventory[code]['quantity'] -= item['quantity']
     save_inventory()
 
-    # 构建完整订单记录
+    # 构建订单记录
     order = {
         'order_id': datetime.now().strftime("订单%Y%m%d%H%M%S"),
         'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -340,16 +377,16 @@ def checkout():
                 'code': code,
                 'name': item['name'],
                 'quantity': item['quantity'],
-                'price': float(item['price'])  # 确保是浮点数
+                'price': float(item['price'])
             } 
             for code, item in cart.items()
         ],
-        'total': total_amount  # 使用计算出的总金额
+        'total': total_amount
     }
     order_history.append(order)
     save_orders()
 
-    # 显示收据（使用计算出的金额，而非界面变量）
+    # 显示收据
     receipt = f"订单号: {order['order_id']}\n时间: {order['time']}\n\n"
     receipt += "商品清单:\n"
     for item in order['items']:
@@ -362,12 +399,13 @@ def checkout():
     cart.clear()
     refresh_cart()
     update_status(f"结账成功，订单号: {order['order_id']}")
+    focus_barcode_entry()
 
-# --- 订单历史窗口 ---
+# --- 订单历史 ---
 def show_order_history():
     history_win = tk.Toplevel(root)
     history_win.title("历史订单")
-    history_win.geometry("900x500")
+    history_win.geometry("900x600")
     history_win.configure(bg=COLORS["bg"])
     
     try:
@@ -377,32 +415,28 @@ def show_order_history():
 
     # 标题
     title_frame = tk.Frame(history_win, bg=COLORS["bg"])
-    title_frame.pack(fill=tk.X, padx=15, pady=10)
+    title_frame.pack(fill=tk.X, padx=20, pady=15)
     
     tk.Label(
         title_frame,
-        text="历史订单记录",
+        text="📋 历史订单记录",
         font=FONTS["title"],
         fg=COLORS["primary"],
         bg=COLORS["bg"]
     ).pack(side=tk.LEFT)
-    
+
     # 搜索框
     search_frame = tk.Frame(history_win, bg=COLORS["bg"])
-    search_frame.pack(fill=tk.X, padx=15, pady=(0,10))
+    search_frame.pack(fill=tk.X, padx=20, pady=(0,15))
     
     search_var_hist = tk.StringVar()
-    search_entry_hist = tk.Entry(
+    search_entry = ttk.Entry(
         search_frame,
         textvariable=search_var_hist,
         font=FONTS["normal"],
-        bg=COLORS["light"],
-        relief="flat",
-        highlightthickness=1,
-        highlightcolor=COLORS["primary"],
-        highlightbackground=COLORS["border"]
+        style="Modern.TEntry"
     )
-    search_entry_hist.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
+    search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,10))
     
     def search_orders():
         keyword = search_var_hist.get().lower()
@@ -410,40 +444,37 @@ def show_order_history():
             values = tree_orders.item(item, 'values')
             if keyword in values[0].lower() or keyword in values[1].lower():
                 tree_orders.item(item, tags=('match',))
-                tree_orders.selection_set(item)
             else:
                 tree_orders.item(item, tags=('no_match',))
-        tree_orders.tag_configure('match', background='#e6f7ff')
-        tree_orders.tag_configure('no_match', background=COLORS["card"])
     
-    search_btn_hist = tk.Button(
+    search_btn = ttk.Button(
         search_frame,
         text="搜索",
-        font=FONTS["bold"],
-        bg=COLORS["primary"],
-        fg="white",
-        activebackground=COLORS["dark"],
+        style="Modern.TButton",
         command=search_orders
     )
-    search_btn_hist.pack(side=tk.LEFT, padx=(0,5))
+    search_btn.pack(side=tk.LEFT, padx=(0,10))
     
-    clear_btn_hist = tk.Button(
+    clear_btn = ttk.Button(
         search_frame,
         text="清除",
-        font=FONTS["bold"],
-        bg=COLORS["secondary"],
-        fg="white",
-        activebackground=COLORS["dark"],
+        style="Modern.TButton",
         command=lambda: [search_var_hist.set(""), search_orders()]
     )
-    clear_btn_hist.pack(side=tk.LEFT)
-    
+    clear_btn.pack(side=tk.LEFT)
+
     # 订单表格
     card = tk.Frame(history_win, bg=COLORS["card"], bd=0, highlightthickness=0)
-    card.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0,15))
-    
+    card.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,20))
+
     columns = ("订单编号", "时间", "商品数量", "总金额")
-    tree_orders = ttk.Treeview(card, columns=columns, show='headings', selectmode='browse')
+    tree_orders = ttk.Treeview(
+        card, 
+        columns=columns, 
+        show='headings', 
+        selectmode='browse',
+        style="Modern.Treeview"
+    )
     
     tree_orders.heading("订单编号", text="订单编号")
     tree_orders.heading("时间", text="时间")
@@ -469,98 +500,6 @@ def show_order_history():
         total = order.get('total', 0.0)
         tree_orders.insert('', 'end', values=(order_id, time, item_count, f"¥{total:.2f}"))
     
-    # 双击查看详情
-    def show_order_details(event):
-        selected = tree_orders.selection()
-        if not selected:
-            return
-        item = tree_orders.item(selected[0])
-        order_id = item['values'][0]
-        
-        for order in order_history:
-            if order.get('order_id') == order_id:
-                details_win = tk.Toplevel(history_win)
-                details_win.title(f"订单详情 - {order_id}")
-                details_win.geometry("600x400")
-                details_win.configure(bg=COLORS["bg"])
-                
-                try:
-                    details_win.iconbitmap("inventory.ico")
-                except:
-                    pass
-                
-                # 标题
-                tk.Label(
-                    details_win,
-                    text=f"订单详情 - {order_id}",
-                    font=FONTS["subtitle"],
-                    fg=COLORS["primary"],
-                    bg=COLORS["bg"],
-                    pady=10
-                ).pack()
-                
-                # 基本信息
-                info_frame = tk.Frame(details_win, bg=COLORS["bg"])
-                info_frame.pack(fill=tk.X, padx=15, pady=5)
-                
-                tk.Label(
-                    info_frame,
-                    text=f"时间: {order.get('time', '')}",
-                    font=FONTS["normal"],
-                    fg=COLORS["text"],
-                    bg=COLORS["bg"],
-                    anchor='w'
-                ).pack(fill=tk.X)
-                
-                tk.Label(
-                    info_frame,
-                    text=f"商品数量: {len(order.get('items', []))}",
-                    font=FONTS["normal"],
-                    fg=COLORS["text"],
-                    bg=COLORS["bg"],
-                    anchor='w'
-                ).pack(fill=tk.X)
-                
-                tk.Label(
-                    info_frame,
-                    text=f"总金额: ¥{order.get('total', 0.0):.2f}",
-                    font=FONTS["bold"],
-                    fg=COLORS["primary"],
-                    bg=COLORS["bg"],
-                    anchor='w'
-                ).pack(fill=tk.X)
-                
-                # 商品列表
-                items_frame = tk.Frame(details_win, bg=COLORS["bg"])
-                items_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-                
-                columns = ("商品编号", "名称", "数量", "单价", "小计")
-                tree_items = ttk.Treeview(items_frame, columns=columns, show='headings', height=10)
-                
-                for col in columns:
-                    tree_items.heading(col, text=col)
-                    tree_items.column(col, width=100, anchor='center')
-                
-                tree_items.column("名称", width=150, anchor='w')
-                
-                scroll_y = ttk.Scrollbar(items_frame, orient=tk.VERTICAL, command=tree_items.yview)
-                tree_items.configure(yscrollcommand=scroll_y.set)
-                
-                tree_items.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-                scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-                
-                for item in order.get('items', []):
-                    code = item.get('code', '')
-                    name = item.get('name', '未知商品')
-                    qty = item.get('quantity', 0)
-                    price = item.get('price', 0.0)
-                    subtotal = qty * price
-                    tree_items.insert('', 'end', values=(code, name, qty, f"¥{price:.2f}", f"¥{subtotal:.2f}"))
-                
-                break
-    
-    tree_orders.bind("<Double-1>", show_order_details)
-    
     # 状态栏
     status_bar_hist = tk.Label(
         history_win,
@@ -570,29 +509,32 @@ def show_order_history():
         anchor=tk.W,
         font=FONTS["small"],
         bg=COLORS["light"],
-        fg=COLORS["secondary"]
+        fg=COLORS["text"]
     )
     status_bar_hist.pack(side=tk.BOTTOM, fill=tk.X)
 
-# --- 输入框回车跳转 ---
-def code_entry_key(event):
-    if event.keysym == "Return":
-        cash_qty_entry.focus_set()
+# --- 测试功能 ---
+def add_test_menu():
+    menubar = tk.Menu(root)
+    
+    test_menu = tk.Menu(menubar, tearoff=0)
+    test_menu.add_command(label="模拟扫码(001)", command=lambda: simulate_barcode("001"))
+    test_menu.add_command(label="模拟扫码(002)", command=lambda: simulate_barcode("002"))
+    test_menu.add_separator()
+    test_menu.add_command(label="测试声音-成功", command=play_success_sound)
+    test_menu.add_command(label="测试声音-错误", command=play_error_sound)
+    menubar.add_cascade(label="测试", menu=test_menu)
+    
+    root.config(menu=menubar)
 
-def qty_entry_key(event):
-    if event.keysym == "Return":
-        cash_code_entry.focus_set()
-        add_to_cart()
+def simulate_barcode(code):
+    cash_code_var.set(code)
+    handle_barcode_input()
 
-# --- 状态更新 ---
-def update_status(message):
-    status_bar.config(text=message)
-    root.after(5000, lambda: status_bar.config(text="就绪"))
-
-# --- 初始化窗口 ---
+# --- 主窗口 ---
 root = tk.Tk()
-root.title("📦 广州外国语学校团委学生会信息部智能库存管理系统")
-root.geometry("1280x720")
+root.title("📦 智能库存与收银系统 - 天蓝风格")
+root.geometry("1280x800")
 root.configure(bg=COLORS["bg"])
 
 try:
@@ -600,253 +542,259 @@ try:
 except:
     pass
 
-# 配置样式
+# 自定义样式
 style = ttk.Style()
 style.theme_use("clam")
 
 # 配置Treeview样式
-style.configure("Treeview",
+style.configure("Modern.Treeview",
                 font=FONTS["normal"],
-                rowheight=28,
+                rowheight=32,
                 background=COLORS["card"],
                 fieldbackground=COLORS["card"],
                 foreground=COLORS["text"],
                 bordercolor=COLORS["border"],
-                borderwidth=1)
+                borderwidth=0)
 
-style.configure("Treeview.Heading",
+style.configure("Modern.Treeview.Heading",
                 font=FONTS["bold"],
                 background=COLORS["primary"],
                 foreground="white",
                 relief="flat",
-                padding=5)
+                padding=8)
 
-style.map("Treeview",
-          background=[('selected', '#e6f2ff')],
-          foreground=[('selected', COLORS["text"])])
+style.map("Modern.Treeview",
+          background=[('selected', COLORS["primary_light"])],
+          foreground=[('selected', 'black')])
 
-style.configure("TButton",
+# 配置按钮样式
+style.configure("Modern.TButton",
                 font=FONTS["bold"],
-                padding=6,
+                padding=8,
                 relief="flat",
                 background=COLORS["primary"],
                 foreground="white")
 
-style.map("TButton",
-          background=[("active", COLORS["dark"])])
+style.map("Modern.TButton",
+          background=[("active", COLORS["primary_light"]), 
+                     ("pressed", COLORS["primary_dark"])],
+          foreground=[("active", "black"), 
+                     ("pressed", "white")])
 
-style.configure("TEntry",
+# 配置输入框样式
+style.configure("Modern.TEntry",
                 fieldbackground=COLORS["light"],
                 foreground=COLORS["text"],
                 bordercolor=COLORS["border"],
                 lightcolor=COLORS["primary"],
                 darkcolor=COLORS["primary"],
-                padding=5)
+                padding=8,
+                insertcolor=COLORS["primary"])
+
+# 配置标签样式
+style.configure("Modern.TLabel",
+                font=FONTS["normal"],
+                background=COLORS["bg"],
+                foreground=COLORS["text"])
+
+# 配置标签页样式
+style.configure("Modern.TNotebook",
+                background=COLORS["bg"],
+                borderwidth=0)
+
+style.configure("Modern.TNotebook.Tab",
+                font=FONTS["bold"],
+                padding=[15, 5],
+                background=COLORS["light"],
+                foreground=COLORS["text"],
+                borderwidth=0)
+
+style.map("Modern.TNotebook.Tab",
+          background=[("selected", COLORS["primary"])],
+          foreground=[("selected", "white")])
 
 # 顶栏
-top_frame = tk.Frame(root, bg=COLORS["bg"])
-top_frame.pack(fill=tk.X, padx=15, pady=10)
+header = tk.Frame(root, bg=COLORS["primary"], height=60)
+header.pack(fill=tk.X)
 
 title_label = tk.Label(
-    top_frame,
-    text="📦 智能库存管理系统",
+    header,
+    text="📦 智能库存与收银系统",
     font=FONTS["title"],
-    fg=COLORS["primary"],
-    bg=COLORS["bg"]
+    fg="white",
+    bg=COLORS["primary"],
+    pady=15
 )
-title_label.pack(side=tk.LEFT)
+title_label.pack(side=tk.LEFT, padx=20)
 
-search_frame = tk.Frame(top_frame, bg=COLORS["bg"])
+# 搜索框
+search_frame = tk.Frame(header, bg=COLORS["primary"])
 search_frame.pack(side=tk.LEFT, padx=20)
 
 search_var = tk.StringVar()
-search_entry = tk.Entry(
+search_entry = ttk.Entry(
     search_frame,
     textvariable=search_var,
     font=FONTS["normal"],
-    bg=COLORS["light"],
-    relief="flat",
-    highlightthickness=1,
-    highlightcolor=COLORS["primary"],
-    highlightbackground=COLORS["border"],
-    width=25
+    style="Modern.TEntry",
+    width=30
 )
-search_entry.pack(side=tk.LEFT, padx=(0,5))
+search_entry.pack(side=tk.LEFT, padx=(0,10))
 search_entry.bind("<Return>", search_inventory)
 
-search_btn = ttk.Button(search_frame, text="搜索", command=search_inventory)
-search_btn.pack(side=tk.LEFT, padx=(0,5))
+search_btn = ttk.Button(
+    search_frame,
+    text="搜索",
+    style="Modern.TButton",
+    command=search_inventory
+)
+search_btn.pack(side=tk.LEFT, padx=(0,10))
 
 clear_btn = ttk.Button(
     search_frame,
     text="清除",
-    command=clear_search,
-    style="TButton",
-    takefocus=0
+    style="Modern.TButton",
+    command=clear_search
 )
 clear_btn.pack(side=tk.LEFT)
 
-view_history_btn = ttk.Button(
-    top_frame,
+# 历史订单按钮
+history_btn = ttk.Button(
+    header,
     text="历史订单",
+    style="Modern.TButton",
     command=show_order_history
 )
-view_history_btn.pack(side=tk.RIGHT,padx=0)
+history_btn.pack(side=tk.RIGHT, padx=20)
 
-# 主区域
+# 主内容区域
 main_frame = tk.Frame(root, bg=COLORS["bg"])
-main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0,10))
+main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-# 左侧库存管理
-left_card = tk.Frame(
-    main_frame, 
-    bg="#e0e0e0",  # 阴影颜色
-    padx=2, pady=2  # 阴影大小
-)
-left_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,10))
+# 左侧库存面板
+inventory_frame = tk.Frame(main_frame, bg=COLORS["bg"])
+inventory_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,15))
 
-# 实际内容容器
-left_card_inner = tk.Frame(
-    left_card,
-    bg=COLORS["card"],
-    highlightthickness=0,
-    bd=0
-)
-left_card_inner.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
+# 库存标题
+inventory_header = tk.Frame(inventory_frame, bg=COLORS["bg"])
+inventory_header.pack(fill=tk.X, pady=(0,15))
 
-# 标题
 tk.Label(
-    left_card_inner,
+    inventory_header,
     text="库存管理",
     font=FONTS["subtitle"],
     fg=COLORS["primary"],
-    bg=COLORS["card"]
-).pack(fill=tk.X, pady=(8, 2))
+    bg=COLORS["bg"]
+).pack(side=tk.LEFT)
 
-# 表格
-columns = ("编号", "名称", "数量", "价格", "总价")
-tree = ttk.Treeview(left_card, columns=columns, show='headings', selectmode='browse')
+# 库存表格
+tree_frame = tk.Frame(inventory_frame, bg=COLORS["card"], bd=0, highlightthickness=0)
+tree_frame.pack(fill=tk.BOTH, expand=True)
+
+columns = ("编号", "名称", "数量", "单价", "总价")
+tree = ttk.Treeview(
+    tree_frame,
+    columns=columns,
+    show='headings',
+    selectmode='browse',
+    style="Modern.Treeview"
+)
 
 for col in columns:
     tree.heading(col, text=col)
     tree.column(col, anchor='center', width=100)
 
-tree.column("名称", width=180, anchor='w')
-tree.column("总价", width=120, anchor='e')
+tree.column("名称", width=180, anchor='c')
+tree.column("总价", width=120, anchor='c')
 
-scroll_y = ttk.Scrollbar(left_card, orient=tk.VERTICAL, command=tree.yview)
+scroll_y = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
 tree.configure(yscrollcommand=scroll_y.set)
 
-tree.pack(fill=tk.BOTH, expand=True, pady=0)
+tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
-tree.tag_configure("placeholder", foreground=COLORS["secondary"], font=FONTS["small"])
+tree.tag_configure('placeholder', foreground=COLORS["secondary"], font=FONTS["small"])
+tree.tag_configure('normal_row', font=FONTS["normal"])
 
-# 右键菜单
-right_click_menu_selected = tk.Menu(root, tearoff=0, font=FONTS["small"])
-right_click_menu_selected.add_command(label="查询商品", command=query_item)
-right_click_menu_selected.add_command(label="删除商品", command=delete_item)
+# 右侧收银面板
+cashier_frame = tk.Frame(main_frame, bg=COLORS["bg"], width=400)
+cashier_frame.pack(side=tk.RIGHT, fill=tk.Y)
 
-right_click_menu_empty = tk.Menu(root, tearoff=0, font=FONTS["small"])
-right_click_menu_empty.add_command(label="添加商品", command=add_blank_row)
+# 收银标题
+cashier_header = tk.Frame(cashier_frame, bg=COLORS["bg"])
+cashier_header.pack(fill=tk.X, pady=(0,15))
 
-tree.bind("<Double-1>", on_double_click)
-tree.bind("<Button-3>", show_context_menu)
-
-# 右侧收银系统
-right_card = tk.Frame(
-    main_frame,
-    bg="#e0e0e0",
-    width=400,
-    padx=0, pady=2
-)
-right_card.pack(side=tk.RIGHT, fill=tk.Y, padx=0)
-
-# 实际内容容器
-right_card_inner = tk.Frame(
-    right_card,
-    bg=COLORS["card"],
-    highlightthickness=0,
-    bd=0
-)
-right_card_inner.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
-
-# 标题
 tk.Label(
-    right_card_inner,
+    cashier_header,
     text="收银系统",
     font=FONTS["subtitle"],
     fg=COLORS["primary"],
-    bg=COLORS["card"]
-).pack(fill=tk.X, pady=10)
+    bg=COLORS["bg"]
+).pack(side=tk.LEFT)
 
-# 输入表单
-form_frame = tk.Frame(right_card, bg=COLORS["card"])
-form_frame.pack(fill=tk.X, padx=0, pady=(0,15))
+# 收银表单
+form_card = tk.Frame(cashier_frame, bg=COLORS["card"], padx=15, pady=15)
+form_card.pack(fill=tk.X)
 
 tk.Label(
-    form_frame,
+    form_card,
     text="商品编号:",
-    font=FONTS["normal"],
+    font=FONTS["bold"],
     fg=COLORS["text"],
     bg=COLORS["card"],
     anchor='w'
-).grid(row=0, column=0, sticky="w", pady=(0,5))
+).pack(fill=tk.X, pady=(0,5))
 
 cash_code_var = tk.StringVar()
-cash_code_entry = tk.Entry(
-    form_frame,
+cash_code_entry = ttk.Entry(
+    form_card,
     textvariable=cash_code_var,
     font=FONTS["normal"],
-    bg=COLORS["light"],
-    relief="flat",
-    highlightthickness=1,
-    highlightcolor=COLORS["primary"],
-    highlightbackground=COLORS["border"]
+    style="Modern.TEntry"
 )
-cash_code_entry.grid(row=0, column=1, sticky="ew", pady=(0,5))
-cash_code_entry.bind("<Return>", code_entry_key)
-
-tk.Label(
-    form_frame,
-    text="数量:",
-    font=FONTS["normal"],
-    fg=COLORS["text"],
-    bg=COLORS["card"],
-    anchor='w'
-).grid(row=1, column=0, sticky="w")
-
-cash_qty_var = tk.StringVar()
-cash_qty_entry = tk.Entry(
-    form_frame,
-    textvariable=cash_qty_var,
-    font=FONTS["normal"],
-    bg=COLORS["light"],
-    relief="flat",
-    highlightthickness=1,
-    highlightcolor=COLORS["primary"],
-    highlightbackground=COLORS["border"]
-)
-cash_qty_entry.grid(row=1, column=1, sticky="ew")
-cash_qty_entry.bind("<Return>", qty_entry_key)
-
-form_frame.columnconfigure(1, weight=1)
+cash_code_entry.pack(fill=tk.X, pady=(0,15))
+cash_code_entry.bind("<Return>", handle_barcode_input)
 
 add_cart_btn = ttk.Button(
-    right_card,
-    text="加入购物车",
-    command=add_to_cart
+    form_card,
+    text="加入购物车 (数量:1)",
+    style="Modern.TButton",
+    command=lambda: add_to_cart(qty=1)
 )
-add_cart_btn.pack(fill=tk.X, padx=15, pady=(0,15))
+add_cart_btn.pack(fill=tk.X, pady=(0,15))
+
+# 购物车标题
+cart_header = tk.Frame(cashier_frame, bg=COLORS["bg"])
+cart_header.pack(fill=tk.X, pady=(15,5))
+
+tk.Label(
+    cart_header,
+    text="购物车",
+    font=FONTS["bold"],
+    fg=COLORS["primary"],
+    bg=COLORS["bg"]
+).pack(side=tk.LEFT)
+
+clear_cart_btn = ttk.Button(
+    cart_header,
+    text="清空",
+    style="Modern.TButton",
+    command=clear_cart
+)
+clear_cart_btn.pack(side=tk.RIGHT)
 
 # 购物车表格
+cart_tree_frame = tk.Frame(cashier_frame, bg=COLORS["card"], bd=0, highlightthickness=0)
+cart_tree_frame.pack(fill=tk.BOTH, expand=True)
+
 cart_columns = ("编号", "名称", "数量", "单价", "小计")
 cart_tree = ttk.Treeview(
-    right_card,
+    cart_tree_frame,
     columns=cart_columns,
     show="headings",
     height=8,
-    selectmode='browse'
+    selectmode='browse',
+    style="Modern.Treeview"
 )
 
 for col in cart_columns:
@@ -856,66 +804,82 @@ for col in cart_columns:
 cart_tree.column("名称", width=120, anchor='w')
 cart_tree.column("小计", width=90, anchor='e')
 
-scroll_y = ttk.Scrollbar(right_card, orient=tk.VERTICAL, command=cart_tree.yview)
+scroll_y = ttk.Scrollbar(cart_tree_frame, orient=tk.VERTICAL, command=cart_tree.yview)
 cart_tree.configure(yscrollcommand=scroll_y.set)
 
-cart_tree.pack(fill=tk.BOTH, padx=0, expand=True)
+cart_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
+cart_tree.tag_configure('normal_row', font=FONTS["normal"])
+
 # 总金额
-total_frame = tk.Frame(right_card, bg=COLORS["card"])
-total_frame.pack(fill=tk.X, padx=0, pady=10)
+total_frame = tk.Frame(cashier_frame, bg=COLORS["card"], pady=15)
+total_frame.pack(fill=tk.X)
 
 total_var = tk.StringVar(value="¥0.00")
 total_label = tk.Label(
     total_frame,
-    text="总金额: ¥0.00",
-    font=FONTS["bold"],
+    textvariable=total_var,
+    font=FONTS["large"],
     fg=COLORS["primary"],
     bg=COLORS["card"],
     anchor='e'
 )
-total_label.pack(side=tk.RIGHT)
+total_label.pack(fill=tk.X)
 
-# 按钮组
-btn_frame = tk.Frame(right_card, bg=COLORS["card"])
-btn_frame.pack(fill=tk.X, padx=0, pady=(0,15))
-
-clear_cart_btn = ttk.Button(
-    btn_frame,
-    text="清空",
-    command=clear_cart,
-    style="TButton"
-)
-clear_cart_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0,5))
-
+# 结账按钮
 checkout_btn = ttk.Button(
-    btn_frame,
+    cashier_frame,
     text="结账",
-    command=checkout,
-    style="TButton"
+    style="Modern.TButton",
+    command=checkout
 )
-checkout_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5,0))
+checkout_btn.pack(fill=tk.X, pady=(15,0))
+
+# 右键菜单
+right_click_menu_selected = tk.Menu(root, tearoff=0, font=FONTS["small"])
+right_click_menu_selected.add_command(label="查询商品", command=query_item)
+right_click_menu_selected.add_command(label="删除商品", command=delete_item)
+right_click_menu_selected.add_separator()
+right_click_menu_selected.add_command(label="添加到购物车(1个)", command=lambda: add_to_cart(tree.selection()[0], 1))
+right_click_menu_selected.add_command(label="添加到购物车(2个)", command=lambda: add_to_cart(tree.selection()[0], 2))
+right_click_menu_selected.add_command(label="添加到购物车(5个)", command=lambda: add_to_cart(tree.selection()[0], 5))
+
+right_click_menu_empty = tk.Menu(root, tearoff=0, font=FONTS["small"])
+right_click_menu_empty.add_command(label="添加商品", command=add_blank_row)
+
+tree.bind("<Double-1>", on_double_click)
+tree.bind("<Button-3>", show_context_menu)
 
 # 状态栏
-status_bar = tk.Label(
-    root,
-    text="就绪",
-    bd=1,
-    relief=tk.SUNKEN,
+status_frame = tk.Frame(root, bg=COLORS["primary_light"], height=30)
+status_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+status_var = tk.StringVar(value="系统就绪")
+status_label = tk.Label(
+    status_frame,
+    textvariable=status_var,
+    bd=0,
+    relief=tk.FLAT,
     anchor=tk.W,
     font=FONTS["small"],
-    bg=COLORS["light"],
-    fg=COLORS["secondary"]
+    bg=COLORS["primary_light"],
+    fg=COLORS["dark"]
 )
-status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+status_label.pack(fill=tk.X, padx=10)
 
-# --- 初始化数据 ---
+# 初始化数据
 inventory = load_inventory()
 order_history = load_orders()
 
 refresh_tree()
 add_blank_row()
+
+# 添加测试菜单
+add_test_menu()
+
+# 启动时自动聚焦
+focus_barcode_entry()
 
 # 启动主循环
 root.mainloop()
