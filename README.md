@@ -1,4 +1,3 @@
-# xyy1625-Inventory_Management_System
 # 广州外国语学校团委学生会信息部智能库存管理系统
 ## 系统简介
 为广州外国语学校团委学生会信息部制作，采用Python Tkinter GUI框架开发，具有简洁美观的界面和完整的库存管理功能。
